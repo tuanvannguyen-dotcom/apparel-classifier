@@ -98,7 +98,6 @@ td.editable-cell select { background: #fffbe6; }
       <button id="viewConf" class="ghost" onclick="setView('conf')">Confidence level</button>
       <button id="viewSize" class="ghost" onclick="setView('size')">Core size</button>
       <span style="display:inline-block;width:18px"></span>
-      <button id="editChartBtn" class="ghost" onclick="toggleEditChart()">✎ Edit mapping: OFF</button>
       <button class="ghost" id="clearOvrBtn" onclick="confirm2(this,'Click again to clear',clearOverrides)">Clear manual edits</button>
     </div>
     <p class="legend" id="legendBar"></p>
@@ -453,55 +452,50 @@ function renderOutputs(){
   const hr = el("tr"); hr.appendChild(el("th",null,"Cup \\ Band"));
   for(const B of BANDS) hr.appendChild(el("th",null,B));
   t.appendChild(hr);
-  const eb2 = document.getElementById("editChartBtn");
-  if(eb2){ eb2.textContent = "✎ Edit mapping: "+(editChart?"ON":"OFF"); eb2.style.outline = editChart?"2px solid #ffd24d":""; }
   const ovrN = Object.keys(S.overrides).length;
   const cb2 = document.getElementById("clearOvrBtn");
   if(cb2) cb2.style.display = ovrN? "":"none", cb2.dataset.armed="", cb2.textContent="Clear manual edits ("+ovrN+")";
   const sizeNames = S.sizes.map(s=>s.name);
+  const TIERBG = {"t-HIGH":"#d9f0dd","t-MEDIUM":"#fdf3cd","t-LOW":"#ffe1bd","t-NEW":"#f6d5da","t-REM":"#eceff3"};
   for(const [cl,k] of CUPS){
     const tr = el("tr"); tr.appendChild(el("td",{class:"rowhdr"},cl));
     for(const B of BANDS){
       const key = cl+"|"+B, c = eng[key];
       const fv = finalVal(key, eng);
       const modelTxt = c.action==="REMOVE"?"—":c.action==="NEW"?"NEW":c.size;
-      let td;
-      if(editChart){
-        td = el("td",{class:"editable-cell"});
-        const sel = el("select");
-        const auto = el("option",{value:""},"AUTO ("+modelTxt+")");
-        if(!fv.manual) auto.setAttribute("selected","");
-        sel.appendChild(auto);
-        for(const n of ["Remove",...sizeNames]){
-          const op = el("option",{value:n}, n==="Remove"?"— remove":n);
-          if(fv.manual && S.overrides[key]===n) op.setAttribute("selected","");
-          sel.appendChild(op);
-        }
-        sel.addEventListener("change",()=>{ if(sel.value==="") delete S.overrides[key]; else S.overrides[key]=sel.value; save(); renderOutputs(); });
-        td.appendChild(sel);
-        if(fv.manual){ td.style.outline="2px solid #b3402f"; td.style.outlineOffset="-2px"; }
+      // cell background: manual > size view > confidence view (same visual as before, now on the select)
+      let bg;
+      if(fv.val==="Remove") bg = "#eceff3";
+      else if(fv.val==="NEW") bg = TIERBG["t-NEW"];
+      else if(fv.manual) bg = S.view==="size"? sizeColor(fv.val) : "#dbe9fb";
+      else bg = S.view==="size"? sizeColor(c.size) : TIERBG[tierClass(c)];
+      const td = el("td",{class:"editable-cell"});
+      const sel = el("select");
+      const auto = el("option",{value:""},modelTxt);
+      if(!fv.manual) auto.setAttribute("selected","");
+      sel.appendChild(auto);
+      const modelVal = c.action==="REMOVE" ? "Remove" : (c.action==="NEW" ? null : c.size);
+      for(const n of ["Remove",...sizeNames]){
+        if(n===modelVal && S.overrides[key]!==n) continue; // skip duplicate of the model's own proposal
+        const op = el("option",{value:n}, n==="Remove"?"—":n);
+        if(fv.manual && S.overrides[key]===n) op.setAttribute("selected","");
+        sel.appendChild(op);
+      }
+      sel.addEventListener("change",()=>{ if(sel.value==="") delete S.overrides[key]; else S.overrides[key]=sel.value; save(); renderOutputs(); });
+      td.style.background = bg; sel.style.background = bg; sel.style.fontWeight="600";
+      td.appendChild(sel);
+      if(fv.manual){ td.style.outline="2px solid #b3402f"; td.style.outlineOffset="-2px"; }
+      else if(!fv.manual && S.view==="size" && c.tier==="LOW" && fv.val!=="Remove" && fv.val!=="NEW"){ td.style.outline="2px dashed #b3402f"; td.style.outlineOffset="-2px"; }
+      // diagnostics tooltip
+      if(fv.manual){
+        let diagTxt = "";
+        const szObj = S.sizes.find(s=>s.name===fv.val);
+        if(szObj){ const r = evalCandidate(szObj,c.u,c.f,k,S.params); diagTxt = `\nfit check: BFI ${r.bfi.toFixed(2)} · CSI ${r.csi.toFixed(2)} · Cup Ease ${r.vs.toFixed(2)}${r.fail?" · OUTSIDE GATES":""}`; }
+        td.title = `${B}/${cl} · sold ${c.sold}%\nMANUAL: ${fv.val} (model proposed: ${modelTxt})`+diagTxt;
       } else {
-        const txt = (fv.val==="Remove"?"—":fv.val) + (fv.manual?" ✎":"");
-        if(fv.manual){
-          td = el("td",null,txt);
-          td.style.background = fv.val==="Remove"? "#eceff3" : (S.view==="size"? sizeColor(fv.val) : "#dbe9fb");
-          td.style.outline="2px solid #b3402f"; td.style.outlineOffset="-2px";
-          let diagTxt = "";
-          const szObj = S.sizes.find(s=>s.name===fv.val);
-          if(szObj){ const r = evalCandidate(szObj,c.u,c.f,k,S.params); diagTxt = `\nfit check: BFI ${r.bfi.toFixed(2)} · CSI ${r.csi.toFixed(2)} · Cup Ease ${r.vs.toFixed(2)}${r.fail?" · OUTSIDE GATES":""}`; }
-          td.title = `${B}/${cl} · sold ${c.sold}%\nMANUAL: ${fv.val} (model proposed: ${modelTxt})`+diagTxt;
-        } else if(S.view==="size" && c.size!=="N-SIZE"){
-          td = el("td",null,txt);
-          td.style.background = sizeColor(c.size);
-          if(c.tier==="LOW"){ td.style.outline="2px dashed #b3402f"; td.style.outlineOffset="-2px"; }
-        } else {
-          td = el("td",{class:tierClass(c)},txt);
-        }
-        if(!fv.manual){
-          const d = c.diag;
-          td.title = `${B}/${cl} · sold ${c.sold}%\nproposed: ${c.size} (${c.tier})`+
-            (d&&c.size!=="N-SIZE"?`\nBFI ${d.bfi.toFixed(2)} · CSI ${d.csi.toFixed(2)} · Cup Ease ${d.vs.toFixed(2)} · score ${c.score.toFixed(3)}`:`\nno core size passes gates`);
-        }
+        const d = c.diag;
+        td.title = `${B}/${cl} · sold ${c.sold}%\nproposed: ${c.size} (${c.tier})`+
+          (d&&c.size!=="N-SIZE"?`\nBFI ${d.bfi.toFixed(2)} · CSI ${d.csi.toFixed(2)} · Cup Ease ${d.vs.toFixed(2)} · score ${c.score.toFixed(3)}`:`\nno core size passes gates`);
       }
       tr.appendChild(td);
     }
