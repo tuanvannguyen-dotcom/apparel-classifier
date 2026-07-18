@@ -101,7 +101,7 @@ td.editable-cell select { background: #fffbe6; }
     <p class="legend" id="legendBar"></p>
     <div class="scroll"><table class="grid" id="chartTbl"></table></div>
     <div class="stats" id="statsBar"></div>
-    <p class="hint">Hover any cell for BFI / CSI / volume-slack diagnostics. Coverage weights = AMZ sold ratio (5,400 DOs, Nov'25 FFM).</p>
+    <p class="hint">Hover any cell for BFI / CSI / Cup Ease diagnostics. Coverage weights = AMZ sold ratio (5,400 DOs, Nov'25 FFM).</p>
   </section>
 
   <section class="card">
@@ -194,7 +194,7 @@ td.editable-cell select { background: #fffbe6; }
       <span style="background:#f6d5da;font-weight:700">OUT OF RANGE</span>
     </p>
     <div class="scroll" style="max-height:420px;overflow-y:auto"><table id="cmpDetail"></table></div>
-    <p class="hint">Side-by-side fit check of both assignments against the same customer body (BFI / CSI / volume slack). Use it to judge which mapping fits better in each differing cell.</p>
+    <p class="hint">Side-by-side fit check of both assignments against the same customer body (BFI / CSI / Cup Ease). Use it to judge which mapping fits better in each differing cell.</p>
   </section>
 </div>
 
@@ -241,7 +241,7 @@ const PARAM_DEFS = [
  ["tol","Tolerance ± (half-in)",0.375],["bA0","Band Fit min",-0.15],["bA1","Band Fit max",0.95],
  ["bT","Band Fit TARGET",0.45],["cA0","Cup Fit min",0.05],["cA1","Cup Fit max",0.95],
  ["cT","Cup Fit TARGET",0.55],["wB","Weight: band",0.6],["wC","Weight: cup",0.4],
- ["v0","Vol slack min",-0.125],["v1","Vol slack max",2.5],["upMin","UP min cup idx (E=5)",5],
+ ["v0","Cup Ease min",-0.125],["v1","Cup Ease max",2.5],["upMin","UP min cup idx (E=5)",5],
  ["fgUP","F/G only UP molds (1/0)",1],["rhoB","Band extend floor ×",1.0],["rhoC","Bust extend floor ×",1.25],
  ["tierHigh","HIGH if score ≤",0.15],["tierMed","MEDIUM if score ≤",0.30],
  ["minSold","Min sold% for NEW size",0.20],["rhoBandNew","N-size band stretch ×",1.18],["rhoBustNew","N-size bust stretch ×",1.25]];
@@ -464,7 +464,7 @@ function renderOutputs(){
           td.style.outline="2px solid #b3402f"; td.style.outlineOffset="-2px";
           let diagTxt = "";
           const szObj = S.sizes.find(s=>s.name===fv.val);
-          if(szObj){ const r = evalCandidate(szObj,c.u,c.f,k,S.params); diagTxt = `\nfit check: BFI ${r.bfi.toFixed(2)} · CSI ${r.csi.toFixed(2)} · vol slack ${r.vs.toFixed(2)}${r.fail?" · OUTSIDE GATES":""}`; }
+          if(szObj){ const r = evalCandidate(szObj,c.u,c.f,k,S.params); diagTxt = `\nfit check: BFI ${r.bfi.toFixed(2)} · CSI ${r.csi.toFixed(2)} · Cup Ease ${r.vs.toFixed(2)}${r.fail?" · OUTSIDE GATES":""}`; }
           td.title = `${B}/${cl} · sold ${c.sold}%\nMANUAL: ${fv.val} (model proposed: ${modelTxt})`+diagTxt;
         } else if(S.view==="size" && c.size!=="N-SIZE"){
           td = el("td",null,txt);
@@ -476,7 +476,7 @@ function renderOutputs(){
         if(!fv.manual){
           const d = c.diag;
           td.title = `${B}/${cl} · sold ${c.sold}%\nproposed: ${c.size} (${c.tier})`+
-            (d&&c.size!=="N-SIZE"?`\nBFI ${d.bfi.toFixed(2)} · CSI ${d.csi.toFixed(2)} · vol slack ${d.vs.toFixed(2)} · score ${c.score.toFixed(3)}`:`\nno core size passes gates`);
+            (d&&c.size!=="N-SIZE"?`\nBFI ${d.bfi.toFixed(2)} · CSI ${d.csi.toFixed(2)} · Cup Ease ${d.vs.toFixed(2)} · score ${c.score.toFixed(3)}`:`\nno core size passes gates`);
         }
       }
       tr.appendChild(td);
@@ -636,7 +636,7 @@ const volCls = (vs,lo,hi)=> (vs==null)? ["",""] :
     (vs<lo+0.35)?   ["#ffd9bf","SNUG CUP"] :
     (vs>hi-0.5)?    ["#fdf3cd","ROOMY CUP"] : ["#d9f0dd","GOOD"];
 // detailed fit block for a size name against customer body u,f — returns 8 tds:
-// Relax Band | Extend Band | BFI | Relax Bust | Extend Bust | CSI | Vg | Slack (full-circumference inches)
+// Relax Band | Extend Band | BFI | Relax Bust | Extend Bust | CSI | Vg | Cup Ease (full-circumference inches)
 function fitCells(name, u, f, k){
   const p = S.params, szObj = S.sizes.find(s=>s.name===name);
   if(!szObj) return "<td></td>".repeat(8);
@@ -670,7 +670,7 @@ function renderValidation(eng){
   t.appendChild(el("tr",null,
     '<th style="background:#2a628f">Relax Band</th><th style="background:#2a628f">Cust Underbust</th><th style="background:#2a628f">Extend Band</th><th style="background:#2a628f">BFI</th>'+
     '<th style="background:#6d4a7c">Relax Bust</th><th style="background:#6d4a7c">Cust Full Bust</th><th style="background:#6d4a7c">Extend Bust</th><th style="background:#6d4a7c">CSI</th>'+
-    '<th style="background:#7c5b3a">Vg (½)</th><th style="background:#7c5b3a">Slack</th>'));
+    '<th style="background:#7c5b3a">Vg (½)</th><th style="background:#7c5b3a">Cup Ease</th>'));
   let shown=0;
   for(const [cl,k] of CUPS) for(const B of BANDS){
     const key = cl+"|"+B, c = eng[key], fv = finalVal(key, eng);
@@ -811,7 +811,7 @@ function renderCmp(eng){
         td.style.background="#f6d5da"; td.style.fontSize="10px";
         const dg=c.diag;
         td.title = `${B}/${cl} · sold ${c.sold}%\nmodel: ${mv} (${c.tier}) · ${S.compSel}: ${cv}`+
-          (dg&&c.size!=="N-SIZE"?`\nBFI ${dg.bfi.toFixed(2)} · CSI ${dg.csi.toFixed(2)} · vol slack ${dg.vs.toFixed(2)}`:`\nmodel: no core size passes gates`);
+          (dg&&c.size!=="N-SIZE"?`\nBFI ${dg.bfi.toFixed(2)} · CSI ${dg.csi.toFixed(2)} · Cup Ease ${dg.vs.toFixed(2)}`:`\nmodel: no core size passes gates`);
       }
       tr.appendChild(td);
     }
@@ -829,7 +829,7 @@ function renderCmp(eng){
     const subH = bg => `<th style="background:${bg}">FF Size</th>`+
       `<th style="background:${bg}">Rlx Band</th><th style="background:${bg}">Ext Band</th><th style="background:${bg}">BFI</th>`+
       `<th style="background:${bg}">Rlx Bust</th><th style="background:${bg}">Ext Bust</th><th style="background:${bg}">CSI</th>`+
-      `<th style="background:${bg}">Vg (½)</th><th style="background:${bg}">Slack</th>`;
+      `<th style="background:${bg}">Vg (½)</th><th style="background:${bg}">Cup Ease</th>`;
     dt.appendChild(el("tr",null,
       '<th rowspan="2">Sale size</th><th rowspan="2">AMZ sold %</th><th rowspan="2">Cust Underbust</th><th rowspan="2">Cust Full Bust</th>'+
       '<th colspan="9" style="background:#2a628f">MODEL PROPOSAL</th>'+
