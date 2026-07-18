@@ -8,7 +8,7 @@
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
 body { font-family: -apple-system, "Segoe UI", Arial, sans-serif; margin: 0; background: #f7f8fa; color: #1a2333; font-size: 13px; }
-header { background: #1f4e79; color: #fff; padding: 12px 18px; }
+header { background: #1f4e79; color: #fff; padding: 12px 18px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
 header h1 { margin: 0; font-size: 16px; }
 header p { margin: 4px 0 0; font-size: 11px; opacity: .85; }
 .tabs { display: flex; gap: 0; background: #163a5c; }
@@ -48,6 +48,9 @@ details > .body { background: #fff; border: 1px solid #e1e6ee; border-top: 0; bo
 .warn { color: #b3402f; font-weight: 600; }
 .ok { color: #1e7b3a; font-weight: 600; }
 .scroll { overflow-x: auto; }
+/* sticky headers inside vertically-scrolling tables (2-row grouped headers) */
+.vscroll table tr:first-child th { position: sticky; top: 0; z-index: 6; height: 28px; box-shadow: inset 0 -1px 0 #dde3ec; }
+.vscroll table tr:nth-child(2) th { position: sticky; top: 28px; z-index: 5; height: 24px; box-shadow: inset 0 -1px 0 #dde3ec; }
 td.editable-cell select { background: #fffbe6; }
 .status-ok { background: #d9f0dd; }
 .status-warn { background: #f6d5da; }
@@ -121,7 +124,7 @@ td.editable-cell select { background: #fffbe6; }
       <span style="background:#fdf3cd">LOOSE — near relax</span>
       <span style="background:#f6d5da;font-weight:700">OUT OF RANGE</span>
     </p>
-    <div class="scroll" style="max-height:420px;overflow-y:auto"><table id="valTbl"></table></div>
+    <div class="scroll vscroll" style="max-height:420px;overflow-y:auto"><table id="valTbl"></table></div>
     <p class="hint">All measurements in full-circumference inches (garment halves ×2). Columns are grouped so each body measurement sits between the garment's relax and extend: Relax Band → <b>Cust Underbust</b> → Extend Band, and Relax Bust → <b>Cust Full Bust</b> → Extend Bust. BFI/CSI = position within the tolerance-shrunk window (0 = at relax, 1 = at max extend); TIGHT &gt; 0.80, LOOSE &lt; 0.15.</p>
   </section>
 
@@ -193,7 +196,7 @@ td.editable-cell select { background: #fffbe6; }
       <span style="background:#fdf3cd">LOOSE / ROOMY</span>
       <span style="background:#f6d5da;font-weight:700">OUT OF RANGE</span>
     </p>
-    <div class="scroll" style="max-height:420px;overflow-y:auto"><table id="cmpDetail"></table></div>
+    <div class="scroll vscroll" style="max-height:420px;overflow-y:auto"><table id="cmpDetail"></table></div>
     <p class="hint">Side-by-side fit check of both assignments against the same customer body (BFI / CSI / Cup Ease). Use it to judge which mapping fits better in each differing cell.</p>
   </section>
 </div>
@@ -228,6 +231,15 @@ const NISHI3 = {
  "DD (E)":"Remove Remove Remove Remove Remove L-UP L-UP 2XL-UP 3XL-UP 3XL-UP 5XL-UP 5XL-UP Remove Remove Remove Remove".split(" "),
  "DDD (F)":"Remove Remove Remove Remove Remove L-UP 2XL-UP 2XL-UP 3XL-UP 3XL-UP 5XL-UP 5XL-UP Remove Remove Remove Remove".split(" "),
  "DDDD (G)":"Remove Remove Remove Remove Remove Remove 2XL-UP 2XL-UP 3XL-UP 3XL-UP 5XL-UP 5XL-UP Remove Remove Remove Remove".split(" ")};
+// Nishi "Proposed SC Revise 4" (18/July/2026, latest): cross-grading high cups into core molds via H&E
+const NISHI4 = {
+ "A":"Remove S S M M L XL 2XL 3XL Remove Remove Remove Remove Remove Remove Remove".split(" "),
+ "B":"Remove S S M L XL XL 2XL 3XL 4XL 5XL 5XL Remove Remove Remove Remove".split(" "),
+ "C":"Remove S M M L XL 2XL 3XL 4XL 4XL 5XL 5XL Remove Remove Remove Remove".split(" "),
+ "D":"Remove S M L L XL 2XL 3XL 4XL 5XL 5XL 5XL Remove Remove Remove Remove".split(" "),
+ "DD (E)":"Remove Remove Remove Remove L L-UP 2XL-UP 2XL-UP 3XL-UP 5XL 5XL-UP 5XL-UP Remove Remove Remove Remove".split(" "),
+ "DDD (F)":"Remove Remove Remove Remove L-UP L-UP 2XL-UP 3XL-UP 3XL-UP 5XL 5XL-UP 5XL-UP Remove Remove Remove Remove".split(" "),
+ "DDDD (G)":"Remove Remove Remove Remove L-UP 2XL-UP 2XL-UP 3XL-UP 3XL-UP 5XL-UP 5XL-UP Remove Remove Remove Remove Remove".split(" ")};
 const CURRENT = {
  "A":"S S S S M M XL XL 2XL 2XL 3XL 4XL 4XL 4XL 5XL 5XL".split(" "),
  "B":"S S S M M L XL 2XL 2XL 3XL 3XL 4XL 4XL 5XL 5XL 5XL".split(" "),
@@ -242,7 +254,8 @@ const PARAM_DEFS = [
  ["bT","Band Fit TARGET",0.45],["cA0","Cup Fit min",0.05],["cA1","Cup Fit max",0.95],
  ["cT","Cup Fit TARGET",0.55],["wB","Weight: band",0.6],["wC","Weight: cup",0.4],
  ["v0","Cup Ease min",-0.125],["v1","Cup Ease max",2.5],["upMin","UP min cup idx (E=5)",5],
- ["fgUP","F/G only UP molds (1/0)",1],["rhoB","Band extend floor ×",1.0],["rhoC","Bust extend floor ×",1.25],
+ ["fgUP","F/G only UP molds, no core fallback (1/0)",0],
+ ["upPref","Prefer UP molds for DD(E)+ when they fit (1/0)",1],["rhoB","Band extend floor ×",1.0],["rhoC","Bust extend floor ×",1.25],
  ["tierHigh","HIGH if score ≤",0.15],["tierMed","MEDIUM if score ≤",0.30],
  ["minSold","Min sold% for NEW size",0.20],["rhoBandNew","N-size band stretch ×",1.18],["rhoBustNew","N-size bust stretch ×",1.25]];
 
@@ -269,13 +282,21 @@ if(!S.compCharts) S.compCharts = {};
 if(S.compCharts["Nishi Remap"] && !S.compCharts["Nishi Remap (Revise 2)"]){
   S.compCharts["Nishi Remap (Revise 2)"] = S.compCharts["Nishi Remap"]; delete S.compCharts["Nishi Remap"];
 }
-if(!S.compCharts["Nishi Revise 3 (latest)"]){ S.compCharts["Nishi Revise 3 (latest)"] = gridToMap(NISHI3); S.compSel = "Nishi Revise 3 (latest)"; }
+if(S.compCharts["Nishi Revise 3 (latest)"] && !S.compCharts["Nishi Revise 3"]){
+  S.compCharts["Nishi Revise 3"] = S.compCharts["Nishi Revise 3 (latest)"]; delete S.compCharts["Nishi Revise 3 (latest)"];
+}
+if(!S.compCharts["Nishi Revise 4 (18 Jul, latest)"]){ S.compCharts["Nishi Revise 4 (18 Jul, latest)"] = gridToMap(NISHI4); S.compSel = "Nishi Revise 4 (18 Jul, latest)"; }
+if(!S.compCharts["Nishi Revise 3"]) S.compCharts["Nishi Revise 3"] = gridToMap(NISHI3);
 if(!S.compCharts["Nishi Remap (Revise 2)"]) S.compCharts["Nishi Remap (Revise 2)"] = gridToMap(NISHI);
 if(!S.compCharts["Current SC"]) S.compCharts["Current SC"] = gridToMap(CURRENT);
-if(!S.compSel || !S.compCharts[S.compSel]) S.compSel = "Nishi Revise 3 (latest)";
+if(!S.compSel || !S.compCharts[S.compSel]) S.compSel = "Nishi Revise 4 (18 Jul, latest)";
 if(!S.overrides) S.overrides = {};   // manual per-cell edits of the proposed chart: {"cl|B": sizeName | "Remove"}
 // policy 2026-07-18 (Tuan): +4 method for ALL bands — one-time migration of stored offsets
 if(S.offsetPolicy!=="flat4"){ S.offsets = Object.fromEntries(BANDS.map(B=>[B,4])); S.offsetPolicy="flat4"; }
+// policy 2026-07-18 (Nishani Revise 4): cross-grading allowed — F/G cups may map to core molds when Cup Ease covers; one-time flip of fgUP
+if(S.fgupPolicy!=="crossgrade"){ S.params.fgUP = 0; S.fgupPolicy="crossgrade"; }
+// policy 2026-07-18b (Tuan): shape-before-position — DD(E)+ prefers UP molds when they fit; core molds = fallback only
+if(S.upprefPolicy!=="shapeFirst"){ S.params.upPref = 1; S.upprefPolicy="shapeFirst"; }
 function save(){ try{ localStorage.setItem("scmodel_v2", JSON.stringify(S)); }catch(e){} }
 function resetAll(btn){ const cc=S.compCharts, cs=S.compSel; S = defaults(); S.compCharts=cc; S.compSel=cs; save(); renderAll(); }
 
@@ -293,11 +314,14 @@ function runEngine(){
   for(const [cl,k] of CUPS) for(let bi=0; bi<BANDS.length; bi++){
     const B = BANDS[bi], off = S.offsets[B] ?? 4;
     const u = (B-off)/2, f = (B+k)/2;
-    let best=null, bs=1e9, bd=null;
+    // shape-before-position: for DD(E)+ prefer the best passing UP mold; core molds are fallback only
+    let best=null, bs=1e9, bd=null, bestUP=null, bsUP=1e9, bdUP=null;
     for(const sz of S.sizes){
       const r = evalCandidate(sz,u,f,k,p);
       if(r.score<bs){ bs=r.score; best=sz.name; bd=r; }
+      if(sz.up==1 && r.score<bsUP){ bsUP=r.score; bestUP=sz.name; bdUP=r; }
     }
+    if(p.upPref==1 && k>=p.upMin && bsUP<999){ bs=bsUP; best=bestUP; bd=bdUP; }
     const sold = SOLD[cl][bi]||0;
     const isN = bs>=999;
     const tier = isN? "N-SIZE" : bs<=p.tierHigh? "HIGH" : bs<=p.tierMed? "MEDIUM" : "LOW";
