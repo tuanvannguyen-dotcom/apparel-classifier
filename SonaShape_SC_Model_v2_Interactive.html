@@ -180,6 +180,22 @@ td.editable-cell select { background: #fffbe6; }
     <div class="stats" id="cmpStats"></div>
     <p class="hint">Hover a DIFFER cell for the model's fit diagnostics — the numbers to bring to the alignment discussion.</p>
   </section>
+
+  <section class="card">
+    <h2>Mapping detail — <span id="cmpDetName"></span> (validation)</h2>
+    <div class="toolbar">
+      <label class="small" style="cursor:pointer"><input type="checkbox" id="cmpDetAll" onchange="renderCmp()"> show all cells (default: differing only)</label>
+      <span class="small" id="cmpDetCount" style="margin-left:10px"></span>
+    </div>
+    <p class="legend">
+      <span style="background:#d9f0dd">GOOD fit</span>
+      <span style="background:#ffd9bf">TIGHT / SNUG</span>
+      <span style="background:#fdf3cd">LOOSE / ROOMY</span>
+      <span style="background:#f6d5da;font-weight:700">OUT OF RANGE</span>
+    </p>
+    <div class="scroll" style="max-height:420px;overflow-y:auto"><table id="cmpDetail"></table></div>
+    <p class="hint">Side-by-side fit check of both assignments against the same customer body (BFI / CSI / volume slack). Use it to judge which mapping fits better in each differing cell.</p>
+  </section>
 </div>
 
 </main>
@@ -609,6 +625,29 @@ function renderInv(eng){
   }
 }
 
+// ---------------- FIT CLASSIFICATION (shared) ----------------
+// OUT (outside gates) / TIGHT (near max stretch) / LOOSE (near relax) / GOOD
+const fitCls = (v,lo,hi)=> (v==null)? ["",""] :
+    (v<lo||v>hi)? ["#f6d5da;font-weight:700","OUT OF RANGE"] :
+    (v>0.80)?     ["#ffd9bf","TIGHT"] :
+    (v<0.15)?     ["#fdf3cd","LOOSE"] : ["#d9f0dd","GOOD"];
+const volCls = (vs,lo,hi)=> (vs==null)? ["",""] :
+    (vs<lo||vs>hi)? ["#f6d5da;font-weight:700", vs<lo?"CUP TOO SMALL":"CUP TOO BIG"] :
+    (vs<lo+0.35)?   ["#ffd9bf","SNUG CUP"] :
+    (vs>hi-0.5)?    ["#fdf3cd","ROOMY CUP"] : ["#d9f0dd","GOOD"];
+// detailed fit block for a size name against customer body u,f — returns 8 tds:
+// Relax Band | Extend Band | BFI | Relax Bust | Extend Bust | CSI | Vg | Slack (full-circumference inches)
+function fitCells(name, u, f, k){
+  const p = S.params, szObj = S.sizes.find(s=>s.name===name);
+  if(!szObj) return "<td></td>".repeat(8);
+  const d = evalCandidate(szObj, u, f, k, p);
+  const [bBg,bLab]=fitCls(d.bfi,p.bA0,p.bA1), [cBg,cLab]=fitCls(d.csi,p.cA0,p.cA1), [vBg,vLab]=volCls(d.vs,p.v0,p.v1);
+  const bS=` style="background:${bBg}" title="Band: ${bLab}"`, cS=` style="background:${cBg}" title="Cup/Bust: ${cLab}"`, vS=` style="background:${vBg}" title="Volume: ${vLab}"`;
+  return `<td${bS}>${(szObj.rb*2).toFixed(1)}</td><td${bS}>${(szObj.eb*2).toFixed(1)}</td><td${bS}><b>${d.bfi.toFixed(2)}</b></td>`+
+         `<td${cS}>${(szObj.rc*2).toFixed(1)}</td><td${cS}>${(szObj.ec*2).toFixed(1)}</td><td${cS}><b>${d.csi.toFixed(2)}</b></td>`+
+         `<td${vS}>${(szObj.rc-szObj.rb).toFixed(2)}</td><td${vS}><b>${d.vs.toFixed(2)}</b></td>`;
+}
+
 // ---------------- VALIDATION TABLE ----------------
 function renderValidation(eng){
   eng = eng || runEngine();
@@ -632,15 +671,6 @@ function renderValidation(eng){
     '<th style="background:#2a628f">Relax Band</th><th style="background:#2a628f">Cust Underbust</th><th style="background:#2a628f">Extend Band</th><th style="background:#2a628f">BFI</th>'+
     '<th style="background:#6d4a7c">Relax Bust</th><th style="background:#6d4a7c">Cust Full Bust</th><th style="background:#6d4a7c">Extend Bust</th><th style="background:#6d4a7c">CSI</th>'+
     '<th style="background:#7c5b3a">Vg (½)</th><th style="background:#7c5b3a">Slack</th>'));
-  // fit classification: OUT (outside gates) / TIGHT (near max stretch) / LOOSE (near relax) / GOOD
-  const fitCls = (v,lo,hi)=> (v==null)? ["",""] :
-      (v<lo||v>hi)? ["#f6d5da;font-weight:700","OUT OF RANGE"] :
-      (v>0.80)?     ["#ffd9bf","TIGHT"] :
-      (v<0.15)?     ["#fdf3cd","LOOSE"] : ["#d9f0dd","GOOD"];
-  const volCls = (vs,lo,hi)=> (vs==null)? ["",""] :
-      (vs<lo||vs>hi)? ["#f6d5da;font-weight:700", vs<lo?"CUP TOO SMALL":"CUP TOO BIG"] :
-      (vs<lo+0.35)?   ["#ffd9bf","SNUG CUP"] :
-      (vs>hi-0.5)?    ["#fdf3cd","ROOMY CUP"] : ["#d9f0dd","GOOD"];
   let shown=0;
   for(const [cl,k] of CUPS) for(const B of BANDS){
     const key = cl+"|"+B, c = eng[key], fv = finalVal(key, eng);
@@ -790,6 +820,42 @@ function renderCmp(eng){
   const cs = document.getElementById("cmpStats"); cs.innerHTML="";
   for(const [v,l] of [[agree+" / 112","agree"],[differ,"differ"],[dSold.toFixed(1)+"%","AMZ sales in differing cells"]])
     cs.appendChild(el("div",{class:"stat"},`<b>${v}</b><span>${l}</span>`));
+  // mapping detail table (validation) — model vs comparison side by side
+  const dn = document.getElementById("cmpDetName"); if(dn) dn.textContent = "model vs "+S.compSel;
+  const dt = document.getElementById("cmpDetail");
+  if(dt){
+    const showAll = (document.getElementById("cmpDetAll")||{}).checked;
+    dt.innerHTML="";
+    const subH = bg => `<th style="background:${bg}">FF Size</th>`+
+      `<th style="background:${bg}">Rlx Band</th><th style="background:${bg}">Ext Band</th><th style="background:${bg}">BFI</th>`+
+      `<th style="background:${bg}">Rlx Bust</th><th style="background:${bg}">Ext Bust</th><th style="background:${bg}">CSI</th>`+
+      `<th style="background:${bg}">Vg (½)</th><th style="background:${bg}">Slack</th>`;
+    dt.appendChild(el("tr",null,
+      '<th rowspan="2">Sale size</th><th rowspan="2">AMZ sold %</th><th rowspan="2">Cust Underbust</th><th rowspan="2">Cust Full Bust</th>'+
+      '<th colspan="9" style="background:#2a628f">MODEL PROPOSAL</th>'+
+      '<th colspan="9" style="background:#6d4a7c">'+S.compSel.toUpperCase()+'</th>'));
+    dt.appendChild(el("tr",null, subH("#2a628f")+subH("#6d4a7c")));
+    const emptyBlock = '<td class="t-REM">—</td>'+"<td></td>".repeat(8);
+    let n=0;
+    for(const [cl,k] of CUPS) for(const B of BANDS){
+      const key = cl+"|"+B, c = eng[key];
+      const fv = finalVal(key, eng);
+      const mv = (fv.val==="Remove"||fv.val==="NEW")?"Remove":fv.val;
+      const cv = chart[key]||"Remove";
+      if(!showAll && mv===cv) continue;
+      if(mv==="Remove" && cv==="Remove"){ if(!showAll) continue; }
+      const ub = (B - (S.offsets[B]??4)).toFixed(1);
+      const mCell = mv==="Remove" ? emptyBlock
+        : `<td style="background:${sizeColor(mv)}"><b>${mv}</b></td>`+fitCells(mv, c.u, c.f, k);
+      const cCell = cv==="Remove" ? emptyBlock
+        : `<td style="background:${sizeColor(cv)}"><b>${cv}</b></td>`+fitCells(cv, c.u, c.f, k);
+      dt.appendChild(el("tr",null,
+        `<td><b>${B}/${cl}</b></td><td>${c.sold}%</td><td><b>${ub}</b></td><td><b>${B+k}</b></td>`+mCell+cCell));
+      n++;
+    }
+    if(!n) dt.appendChild(el("tr",null,'<td colspan="22" class="small">No differing cells — the charts fully agree.</td>'));
+    const dc = document.getElementById("cmpDetCount"); if(dc) dc.textContent = n+" rows";
+  }
 }
 
 // ---------------- SHELL ----------------
