@@ -56,6 +56,7 @@ td.editable-cell select { background: #fffbe6; }
 .status-warn { background: #f6d5da; }
 .small { font-size: 11px; color: #5b6b80; }
 .toolbar { margin-bottom: 10px; }
+button.xls { float: right; padding: 2px 9px; font-size: 10px; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -70,6 +71,20 @@ td.editable-cell select { background: #fffbe6; }
 </header>
 <main>
 
+<details>
+  <summary>Share / sync edits — export &amp; import (edits save only in YOUR browser; use this to exchange them)</summary>
+  <div class="body">
+    <p class="hint" style="margin:0 0 8px">Export copies your full state (measurements, parameters, manual edits, comparison charts) as text — paste it in Slack/email. Import applies a teammate's exported text into your view (overwrites your current edits).</p>
+    <div class="toolbar">
+      <button class="ghost" onclick="exportState()">Export my edits</button>
+      <button class="ghost" onclick="copyState(this)">Copy to clipboard</button>
+      <button onclick="importState()">Import pasted text</button>
+      <span class="small" id="shareMsg"></span>
+    </div>
+    <textarea id="shareBox" style="width:100%;height:110px;border:1px solid #cbd5e1;border-radius:6px;font-family:monospace;font-size:10px;padding:6px" placeholder="Exported state appears here — or paste a teammate's export here, then click Import."></textarea>
+  </div>
+</details>
+
 <div id="tab-fwd">
   <details>
     <summary>Model parameters (defaults = agreed v2 calibration — expand to tune)</summary>
@@ -83,7 +98,7 @@ td.editable-cell select { background: #fffbe6; }
   </details>
 
   <section class="card">
-    <h2>Core (fulfillment) size measurements — half measures, inches</h2>
+    <h2>Core (fulfillment) size measurements — half measures, inches <button class="ghost xls" onclick="exportTable('measTbl','Core_Size_Measurements')">⬇ Excel</button></h2>
     <div class="scroll"><table id="measTbl"></table></div>
     <p style="margin-top:8px">
       <button class="ghost" onclick="addSize()">+ Add core size</button>
@@ -92,7 +107,7 @@ td.editable-cell select { background: #fffbe6; }
   </section>
 
   <section class="card">
-    <h2>Proposed size chart (auto-generated)</h2>
+    <h2>Proposed size chart (auto-generated) <button class="ghost xls" onclick="exportTable('chartTbl','Proposed_Size_Chart')">⬇ Excel</button></h2>
     <div class="toolbar">
       <span class="small" style="margin-right:6px">Color by:</span>
       <button id="viewConf" class="ghost" onclick="setView('conf')">Confidence level</button>
@@ -107,7 +122,7 @@ td.editable-cell select { background: #fffbe6; }
   </section>
 
   <section class="card">
-    <h2>Mapping detail — all sales sizes (validation)</h2>
+    <h2>Mapping detail — all sales sizes (validation) <button class="ghost xls" onclick="exportTable('valTbl','Mapping_Detail_Validation')">⬇ Excel</button></h2>
     <div class="toolbar">
       <span class="small">Filter:</span>
       <select id="valActFilter" onchange="renderValidation()" style="font-size:12px;padding:3px">
@@ -128,7 +143,7 @@ td.editable-cell select { background: #fffbe6; }
   </section>
 
   <section class="card">
-    <h2>New core size candidates (N-sizes) — suggested measurement specs</h2>
+    <h2>New core size candidates (N-sizes) — suggested measurement specs <button class="ghost xls" onclick="exportTable('nclusterTbl','N_Size_Suggested_Specs')">⬇ Excel</button></h2>
     <div class="scroll"><table id="nclusterTbl"></table></div>
     <p class="hint">Candidates are clustered into suggested new core sizes (N1, N2 …). "Add to measurements" inserts the size into the measurement table above — the chart regenerates and shows which sales sizes it captures.</p>
     <div class="scroll" style="margin-top:10px"><table id="nsizeTbl"></table></div>
@@ -137,7 +152,7 @@ td.editable-cell select { background: #fffbe6; }
 
 <div id="tab-inv" style="display:none">
   <section class="card">
-    <h2>Target size chart — assign a core size per cell</h2>
+    <h2>Target size chart — assign a core size per cell <button class="ghost xls" onclick="exportTable('invTbl','Target_Size_Chart')">⬇ Excel</button></h2>
     <div class="toolbar">
       <button class="ghost" onclick="loadInv('model')">Load model proposal</button>
       <select id="invLoadSel" style="max-width:200px;font-size:12px;padding:4px"></select>
@@ -149,7 +164,7 @@ td.editable-cell select { background: #fffbe6; }
   </section>
 
   <section class="card">
-    <h2>Required measurement spec per core size (derived)</h2>
+    <h2>Required measurement spec per core size (derived) <button class="ghost xls" onclick="exportTable('invSpec','Required_Measurement_Specs')">⬇ Excel</button></h2>
     <div class="scroll"><table id="invSpec"></table></div>
     <p class="hint">Derivation: group's mid underbust placed at Band-Fit target (bT), mid bust at Cup target (cT); extend = relax × assumed stretch ratio (rhoBandNew / rhoBustNew). Cup volume must cover the largest assigned cup (v0) without exceeding surplus limit on the smallest (v1). Compare against current actuals in the first tab.</p>
   </section>
@@ -157,7 +172,7 @@ td.editable-cell select { background: #fffbe6; }
 
 <div id="tab-cmp" style="display:none">
   <section class="card">
-    <h2>Comparison charts</h2>
+    <h2>Comparison charts <button class="ghost xls" onclick="exportTable('cmpEdit','Comparison_Chart')">⬇ Excel</button></h2>
     <div class="toolbar">
       <select id="cmpSel" style="max-width:220px;font-size:12px;padding:4px" onchange="selectCmp(this.value)"></select>
       <input id="cmpNewName" type="text" placeholder="chart name…" style="width:170px;border:1px solid #cbd5e1;border-radius:4px;padding:4px 6px;font-size:12px">
@@ -172,7 +187,7 @@ td.editable-cell select { background: #fffbe6; }
   </section>
 
   <section class="card">
-    <h2>Model proposal vs <span id="cmpName"></span></h2>
+    <h2>Model proposal vs <span id="cmpName"></span> <button class="ghost xls" onclick="exportTable('cmpDiff','Model_vs_Comparison_Diff')">⬇ Excel</button></h2>
     <p class="legend">
       <span style="background:#d9f0dd">AGREE</span>
       <span style="background:#f6d5da">DIFFER — cell shows model → comparison</span>
@@ -184,7 +199,7 @@ td.editable-cell select { background: #fffbe6; }
   </section>
 
   <section class="card">
-    <h2>Mapping detail — <span id="cmpDetName"></span> (validation)</h2>
+    <h2>Mapping detail — <span id="cmpDetName"></span> (validation) <button class="ghost xls" onclick="exportTable('cmpDetail','Comparison_Mapping_Detail')">⬇ Excel</button></h2>
     <div class="toolbar">
       <label class="small" style="cursor:pointer"><input type="checkbox" id="cmpDetAll" onchange="renderCmp()"> show all cells (default: differing only)</label>
       <span class="small" id="cmpDetCount" style="margin-left:10px"></span>
@@ -874,6 +889,54 @@ function renderCmp(eng){
     if(!n) dt.appendChild(el("tr",null,'<td colspan="22" class="small">No differing cells — the charts fully agree.</td>'));
     const dc = document.getElementById("cmpDetCount"); if(dc) dc.textContent = n+" rows";
   }
+}
+
+// ---------------- SHARE / SYNC ----------------
+function shareMsg(t){ const m=document.getElementById("shareMsg"); if(m){ m.textContent=t; setTimeout(()=>{ if(m.textContent===t) m.textContent=""; },4000); } }
+function exportState(){
+  const box=document.getElementById("shareBox");
+  box.value = JSON.stringify({_app:"sonashape-sc-model", _exported:new Date().toISOString(), state:S});
+  box.select(); shareMsg("Exported — copy the text and share it.");
+}
+function copyState(btn){
+  const box=document.getElementById("shareBox");
+  if(!box.value) exportState();
+  box.select();
+  try{ navigator.clipboard.writeText(box.value).then(()=>shareMsg("Copied to clipboard.")); }
+  catch(e){ try{ document.execCommand("copy"); shareMsg("Copied to clipboard."); }catch(e2){ shareMsg("Select the text and copy manually (Ctrl/Cmd+C)."); } }
+}
+function importState(){
+  const box=document.getElementById("shareBox");
+  try{
+    const obj = JSON.parse(box.value.trim());
+    const st = obj.state || obj;   // accept raw state too
+    if(!st.params || !st.sizes || !st.offsets) throw new Error("not a valid export");
+    S = st; save(); renderAll();
+    shareMsg("Imported"+(obj._exported?" (exported "+obj._exported.slice(0,16).replace("T"," ")+")":"")+" — view updated.");
+  } catch(e){ shareMsg("Import failed: paste the full exported text. ("+e.message+")"); }
+}
+
+
+// ---------------- EXPORT TO EXCEL ----------------
+function exportTable(id, name){
+  const src = document.getElementById(id);
+  if(!src || !src.rows || !src.rows.length) return;
+  const t = src.cloneNode(true);
+  t.querySelectorAll("td,th").forEach(cell=>{
+    const sel = cell.querySelector("select");
+    if(sel){ const txt = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : ""; const bg = cell.style.background; cell.textContent = txt; if(bg) cell.style.background = bg; }
+    const inp = cell.querySelector("input");
+    if(inp){ cell.textContent = inp.value; }
+    cell.querySelectorAll("button").forEach(b=>b.remove());
+    cell.removeAttribute("title");
+  });
+  const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><style>td,th{border:1px solid #ccc;font-family:Arial;font-size:12px;padding:3px 6px}th{background:#1f4e79;color:#fff}</style></head><body>'+t.outerHTML+"</body></html>";
+  const blob = new Blob(["\ufeff", html], {type:"application/vnd.ms-excel"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name+"_"+new Date().toISOString().slice(0,10)+".xls";
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
 
 // ---------------- SHELL ----------------
